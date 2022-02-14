@@ -152,9 +152,8 @@ public class ModbusSlaveFactory {
         }
 
         // If we have a slave already assigned to this port
-        if (slaves.containsKey(serialParams.getPortName())) {
-            slave = slaves.get(serialParams.getPortName());
-
+        slave = getSlave(ModbusSlaveType.SERIAL, serialParams.getPortName());
+        if (slave != null) {
             // Check if any of the parameters have changed
             if (!serialParams.toString().equals(slave.getSerialParams().toString())) {
                 close(slave);
@@ -165,8 +164,7 @@ public class ModbusSlaveFactory {
         // If we don;t have a slave, create one
         if (slave == null) {
             slave = new ModbusSlave(serialParams);
-            slaves.put(serialParams.getPortName(), slave);
-            return slave;
+            slaves.put(ModbusSlaveType.SERIAL.getKey(serialParams.getPortName()), slave);
         }
         return slave;
     }
@@ -179,7 +177,11 @@ public class ModbusSlaveFactory {
     public static void close(ModbusSlave slave) {
         if (slave != null) {
             slave.closeListener();
-            slaves.remove(slave.getType().getKey(slave.getPort()));
+            if (slave.getType().is(ModbusSlaveType.SERIAL)) {
+                slaves.remove(slave.getType().getKey(slave.getSerialParams().getPortName()));
+            } else {
+                slaves.remove(slave.getType().getKey(slave.getPort()));
+            }
         }
     }
 
@@ -193,23 +195,23 @@ public class ModbusSlaveFactory {
     }
 
     /**
-     * Returns the running slave listening on the given IP port
+     * Returns the running slave listening on the given port
      *
      * @param port Port to check for running slave
      * @return Null or ModbusSlave
      */
-    public static ModbusSlave getSlave(int port) {
-        return slaves.get(port + "");
+    public static ModbusSlave getSlave(ModbusSlaveType type, int port) {
+        return type == null ? null : slaves.get(type.getKey(port));
     }
 
     /**
-     * Returns the running slave listening on the given serial port
+     * Returns the running slave listening on the given port
      *
      * @param port Port to check for running slave
      * @return Null or ModbusSlave
      */
-    public static ModbusSlave getSlave(String port) {
-        return ModbusUtil.isBlank(port) ? null : slaves.get(port);
+    public static ModbusSlave getSlave(ModbusSlaveType type, String port) {
+        return type == null || ModbusUtil.isBlank(port) ? null : slaves.get(type.getKey(port));
     }
 
     /**
@@ -226,5 +228,4 @@ public class ModbusSlaveFactory {
         }
         return null;
     }
-
 }
