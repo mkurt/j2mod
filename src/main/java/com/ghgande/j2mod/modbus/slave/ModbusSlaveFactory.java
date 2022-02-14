@@ -35,7 +35,7 @@ import java.util.Map;
  */
 public class ModbusSlaveFactory {
 
-    private static final Map<String, ModbusSlave> slaves = new HashMap<String, ModbusSlave>();
+    private static final Map<String, ModbusSlave> slaves = new HashMap<>();
 
     /**
      * Prevent instantiation
@@ -143,7 +143,7 @@ public class ModbusSlaveFactory {
      * @throws ModbusException If a problem occurs e.g. port already in use
      */
     public static synchronized ModbusSlave createSerialSlave(SerialParameters serialParams) throws ModbusException {
-        ModbusSlave slave = null;
+        ModbusSlave slave;
         if (serialParams == null) {
             throw new ModbusException("Serial parameters are null");
         }
@@ -174,7 +174,7 @@ public class ModbusSlaveFactory {
      *
      * @param slave Slave to remove
      */
-    public static void close(ModbusSlave slave) {
+    public static synchronized void close(ModbusSlave slave) {
         if (slave != null) {
             slave.closeListener();
             if (slave.getType().is(ModbusSlaveType.SERIAL)) {
@@ -188,8 +188,8 @@ public class ModbusSlaveFactory {
     /**
      * Closes all slaves and removes them from the running list
      */
-    public static void close() {
-        for (ModbusSlave slave : new ArrayList<ModbusSlave>(slaves.values())) {
+    public static synchronized void close() {
+        for (ModbusSlave slave : new ArrayList<>(slaves.values())) {
             slave.close();
         }
     }
@@ -200,7 +200,7 @@ public class ModbusSlaveFactory {
      * @param port Port to check for running slave
      * @return Null or ModbusSlave
      */
-    public static ModbusSlave getSlave(ModbusSlaveType type, int port) {
+    public static synchronized ModbusSlave getSlave(ModbusSlaveType type, int port) {
         return type == null ? null : slaves.get(type.getKey(port));
     }
 
@@ -210,7 +210,7 @@ public class ModbusSlaveFactory {
      * @param port Port to check for running slave
      * @return Null or ModbusSlave
      */
-    public static ModbusSlave getSlave(ModbusSlaveType type, String port) {
+    public static synchronized ModbusSlave getSlave(ModbusSlaveType type, String port) {
         return type == null || ModbusUtil.isBlank(port) ? null : slaves.get(type.getKey(port));
     }
 
