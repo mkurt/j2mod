@@ -49,7 +49,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
     private final BytesOutputStream byteOutputStream = new BytesOutputStream(Modbus.MAX_MESSAGE_LENGTH + 6); // write frames
     protected Socket socket = null;
     protected TCPMasterConnection master = null;
-    private boolean headless = false; // Some TCP implementations are.
+    private boolean useRtuOverTcp = false;
     private long lastActivityTimestamp;  // System.nanoTime() of last transportation
 
     /**
@@ -98,20 +98,12 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
         prepareStreams(socket);
     }
 
-    /**
-     * Set the transport to be headless
-     */
-    public void setHeadless() {
-        headless = true;
+    public void setUseRtuOverTcp() {
+        useRtuOverTcp = true;
     }
 
-    /**
-     * Set the transport to be headless
-     *
-     * @param headless True if headless
-     */
-    public void setHeadless(boolean headless) {
-        this.headless = headless;
+    public void setUseRtuOverTcp(boolean useRtuOverTcp) {
+        this.useRtuOverTcp = useRtuOverTcp;
     }
 
     /**
@@ -163,12 +155,12 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
 
     @Override
     public void writeResponse(ModbusResponse msg) throws ModbusIOException {
-        writeMessage(msg, false);
+        writeMessage(msg);
     }
 
     @Override
     public void writeRequest(ModbusRequest msg) throws ModbusIOException {
-        writeMessage(msg, false);
+        writeMessage(msg);
     }
 
     @Override
@@ -182,7 +174,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
             synchronized (byteInputStream) {
                 byte[] buffer = byteInputStream.getBuffer();
 
-                if (!headless) {
+                if (!useRtuOverTcp) {
                     dataInputStream.readFully(buffer, 0, 6);
 
                     // The transaction ID must be treated as an unsigned short in
@@ -226,11 +218,16 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                     req.setUnitID(unit);
                     req.setHeadless(true);
                     req.readData(dataInputStream);
-
-                    // Discard the CRC. This is a TCP/IP connection, which has
-                    // proper error correction and recovery.
-
-                    dataInputStream.readShort();
+                    
+                    byte[] buf = new byte[req.getDataLength()];
+                    buf[0] = (byte) req.getUnitID();
+                    buf[1] = (byte) req.getFunctionCode();
+                    System.arraycopy(req.getMessage(), 0, buf, 2, buf.length - 2); 
+                    int[] crc = ModbusUtil.calculateCRC(buf, 0, buf.length);
+                    if (ModbusUtil.unsignedByteToInt(dataInputStream.readByte()) != crc[0] || ModbusUtil.unsignedByteToInt(dataInputStream.readByte()) != crc[1]) {
+                        throw new IOException("CRC Error");
+                    }
+                    
                     if (logger.isDebugEnabled()) {
                         logger.debug("Read: {}", req.getHexMessage());
                     }
@@ -263,7 +260,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                 // use same buffer
                 byte[] buffer = byteInputStream.getBuffer();
                 logger.debug("Reading response...");
-                if (!headless) {
+                if (!useRtuOverTcp) {
                     // All Modbus TCP transactions start with 6 bytes. Get them.
                     dataInputStream.readFully(buffer, 0, 6);
 
@@ -302,16 +299,21 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                     // This is a headless response. It has the same format as a
                     // RTU over Serial response.
                     int unit = dataInputStream.readByte();
-                    int function = dataInputStream.readByte();
+                    int function = dataInputStream.readByte(); 
 
                     response = ModbusResponse.createModbusResponse(function);
                     response.setUnitID(unit);
                     response.setHeadless();
                     response.readData(dataInputStream);
 
-                    // Now discard the CRC. Which hopefully wasn't needed
-                    // because this is a TCP transport.
-                    dataInputStream.readShort();
+                    byte[] buf = new byte[response.getDataLength()];
+                    buf[0] = (byte) response.getUnitID();
+                    buf[1] = (byte) response.getFunctionCode();
+                    System.arraycopy(response.getMessage(), 0, buf, 2, buf.length - 2); 
+                    int[] crc = ModbusUtil.calculateCRC(buf, 0, buf.length);
+                    if (ModbusUtil.unsignedByteToInt(dataInputStream.readByte()) != crc[0] || ModbusUtil.unsignedByteToInt(dataInputStream.readByte()) != crc[1]) {
+                        throw new IOException("CRC Error");
+                    }
                 }
             }
             if (logger.isDebugEnabled()) {
@@ -364,13 +366,12 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
      * <p>
      *
      * @param msg           a <tt>ModbusMessage</tt>.
-     * @param useRtuOverTcp True if the RTU protocol should be used over TCP
      *
      * @throws ModbusIOException data cannot be
      *                           written properly to the raw output stream of
      *                           this <tt>ModbusTransport</tt>.
      */
-    void writeMessage(ModbusMessage msg, boolean useRtuOverTcp) throws ModbusIOException {
+    void writeMessage(ModbusMessage msg) throws ModbusIOException {
         lastActivityTimestamp = System.nanoTime();
         
         try {
@@ -380,7 +381,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
             byte[] message = msg.getMessage();
 
             byteOutputStream.reset();
-            if (!headless) {
+            if (!useRtuOverTcp) {
                 byteOutputStream.writeShort(msg.getTransactionID());
                 byteOutputStream.writeShort(msg.getProtocolID());
                 byteOutputStream.writeShort((message != null ? message.length : 0) + 2);
