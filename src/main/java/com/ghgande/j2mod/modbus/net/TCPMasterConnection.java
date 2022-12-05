@@ -43,6 +43,7 @@ public class TCPMasterConnection {
     // instance attributes
     private Socket socket;
     private int timeout = Modbus.DEFAULT_TIMEOUT;
+    private int connectTimeout = Modbus.DEFAULT_TIMEOUT;
     private boolean connected;
 
     private InetAddress address;
@@ -131,9 +132,9 @@ public class TCPMasterConnection {
             socket.setKeepAlive(true);
             setTimeout(timeout);
 
-            // Connect - only wait for the timeout number of milliseconds
+            // Connect - only wait for the connect timeout number of milliseconds
 
-            socket.connect(new InetSocketAddress(address, port), timeout);
+            socket.connect(new InetSocketAddress(address, port), connectTimeout);
 
             // Prepare the transport
 
@@ -251,6 +252,14 @@ public class TCPMasterConnection {
         catch (IOException ex) {
             logger.warn("Could not set timeout to value {}", timeout, ex);
         }
+    }
+
+    public int getConnectTimeout() {
+        return connectTimeout;
+    }
+
+    public void setConnectTimeout(int connectTimeout) {
+        this.connectTimeout = connectTimeout;
     }
 
     /**

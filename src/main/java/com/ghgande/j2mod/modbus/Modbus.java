@@ -286,7 +286,7 @@ public interface Modbus {
      * Defines the sleep period between transaction retries
      * in milliseconds (=<tt>200</tt>).
      */
-    int RETRY_SLEEP_TIME = 500;
+    int RETRY_SLEEP_TIME = 200;
 
     /**
      * Defines the default reconnecting setting for
@@ -298,7 +298,7 @@ public interface Modbus {
      * Defines the default amount of retires for opening
      * a connection (=<tt>3</tt>).
      */
-    int DEFAULT_RETRIES = 5;
+    int DEFAULT_RETRIES = 3;
 
     /**
      * Defines the default number of msec to delay before transmission<br>

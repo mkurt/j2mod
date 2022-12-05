@@ -135,9 +135,6 @@ public class ModbusTCPTransaction extends ModbusTransaction {
                 }
             }
 
-            // Make sure the timeout is set
-            transport.setTimeout(connection.getTimeout());
-
             try {
 
                 // Write the message to the endpoint
@@ -180,6 +177,10 @@ public class ModbusTCPTransaction extends ModbusTransaction {
             }
             catch (ModbusIOException ex) {
 
+                // If this has happened, then we should close and re-open the connection before re-trying
+                logger.debug("Failed request {} (try: {}) request transaction ID = {} - {} closing connection {}:{}", request.getHexMessage(), retryCounter, request.getTransactionID(), ex.getMessage(), connection.getAddress().toString(), connection.getPort());
+                connection.close();
+
                 // Up the retry counter and check if we are exhausted
                 retryCounter++;
                 if (retryCounter >= retryLimit) {
@@ -190,10 +191,6 @@ public class ModbusTCPTransaction extends ModbusTransaction {
                     logger.debug("Failed transaction Request: {} (try: {}) - retrying after {} milliseconds", request.getHexMessage(), retryCounter, sleepTime);
                     ModbusUtil.sleep(sleepTime);
                 }
-
-                // If this has happened, then we should close and re-open the connection before re-trying
-                logger.debug("Failed request {} (try: {}) request transaction ID = {} - {} closing and re-opening connection {}:{}", request.getHexMessage(), retryCounter, request.getTransactionID(), ex.getMessage(), connection.getAddress().toString(), connection.getPort());
-                connection.close();
             }
 
             // Increment the transaction ID if we are still trying
