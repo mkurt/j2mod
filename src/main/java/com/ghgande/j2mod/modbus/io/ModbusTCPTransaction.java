@@ -16,9 +16,12 @@
 package com.ghgande.j2mod.modbus.io;
 
 import com.ghgande.j2mod.modbus.Modbus;
+import com.ghgande.j2mod.modbus.ModbusCrcException;
 import com.ghgande.j2mod.modbus.ModbusException;
 import com.ghgande.j2mod.modbus.ModbusIOException;
+import com.ghgande.j2mod.modbus.ModbusRetryException;
 import com.ghgande.j2mod.modbus.ModbusSlaveException;
+import com.ghgande.j2mod.modbus.ModbusTimeoutException;
 import com.ghgande.j2mod.modbus.msg.ExceptionResponse;
 import com.ghgande.j2mod.modbus.msg.ModbusRequest;
 import com.ghgande.j2mod.modbus.net.TCPMasterConnection;
@@ -126,7 +129,9 @@ public class ModbusTCPTransaction extends ModbusTransaction {
             // Automatically connect if we aren't already connected
             if (!connection.isConnected()) {
                 try {
-                    logger.debug("Connecting to: {}:{}", connection.getAddress(), connection.getPort());
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Connecting to: {}:{}", connection.getAddress(), connection.getPort());
+                    }
                     connection.connect();
                     transport = connection.getModbusTransport();
                 }
@@ -162,39 +167,45 @@ public class ModbusTCPTransaction extends ModbusTransaction {
                 if (responseIsInValid()) {
                     retryCounter++;
                     if (retryCounter >= retryLimit) {
-                        throw new ModbusIOException("Executing transaction failed (tried %d times)", retryLimit);
+                        throw new ModbusRetryException("Executing transaction failed (tried %d times)", retryLimit);
                     }
                     keepTrying = true;
                     long sleepTime = getRandomSleepTime(retryCounter);
                     if (response == null) {
-                        logger.debug("Failed to get any response (try: {}) - retrying after {} milliseconds", retryCounter, sleepTime);
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Failed to get any response (try: {}) - retrying after {} milliseconds", retryCounter, sleepTime);
+                        }
                     }
                     else {
-                        logger.debug("Failed to get a valid response, transaction IDs do not match (try: {}) - retrying after {} milliseconds", retryCounter, sleepTime);
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Failed to get a valid response, transaction IDs do not match (try: {}) - retrying after {} milliseconds", retryCounter, sleepTime);
+                        }
                     }
                     ModbusUtil.sleep(sleepTime);
                 }
             }
             catch (ModbusIOException ex) {
-
-                // If this has happened, then we should close and re-open the connection before re-trying
-                logger.debug("Failed request {} (try: {}) request transaction ID = {} - {} closing connection {}:{}", request.getHexMessage(), retryCounter, request.getTransactionID(), ex.getMessage(), connection.getAddress().toString(), connection.getPort());
-                connection.close();
+                if (!(ex instanceof ModbusCrcException || ex instanceof ModbusTimeoutException)) {
+                    // If this has happened, then we should close and re-open the connection before re-trying
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Failed request {} (try: {}) request transaction ID = {} - {} closing connection {}:{}", request.getHexMessage(), retryCounter, request.getTransactionID(), ex.getMessage(), connection.getAddress().toString(), connection.getPort());
+                    }
+                    connection.close();
+                }
 
                 // Up the retry counter and check if we are exhausted
                 retryCounter++;
                 if (retryCounter >= retryLimit) {
-                    throw new ModbusIOException("Executing transaction %s failed (tried %d times) %s", request.getHexMessage(), retryLimit, ex.getMessage());
+                    throw new ModbusRetryException("Executing transaction %s failed (tried %d times) %s", request.getHexMessage(), retryLimit, ex.getMessage());
                 }
                 else {
                     long sleepTime = getRandomSleepTime(retryCounter);
-                    logger.debug("Failed transaction Request: {} (try: {}) - retrying after {} milliseconds", request.getHexMessage(), retryCounter, sleepTime);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Failed transaction Request: {} (try: {}) - retrying after {} milliseconds", request.getHexMessage(), retryCounter, sleepTime);
+                    }
                     ModbusUtil.sleep(sleepTime);
                 }
-            }
-
-            // Increment the transaction ID if we are still trying
-            if (keepTrying) {
+            } finally {
                 incrementTransactionID();
             }
         }
@@ -203,7 +214,6 @@ public class ModbusTCPTransaction extends ModbusTransaction {
         if (isReconnecting()) {
             connection.close();
         }
-        incrementTransactionID();
     }
 
     /**

@@ -16,7 +16,9 @@
 package com.ghgande.j2mod.modbus.io;
 
 import com.ghgande.j2mod.modbus.Modbus;
+import com.ghgande.j2mod.modbus.ModbusCrcException;
 import com.ghgande.j2mod.modbus.ModbusIOException;
+import com.ghgande.j2mod.modbus.ModbusTimeoutException;
 import com.ghgande.j2mod.modbus.msg.ModbusMessage;
 import com.ghgande.j2mod.modbus.msg.ModbusRequest;
 import com.ghgande.j2mod.modbus.msg.ModbusResponse;
@@ -225,7 +227,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                     System.arraycopy(req.getMessage(), 0, buf, 2, buf.length - 2); 
                     int[] crc = ModbusUtil.calculateCRC(buf, 0, buf.length);
                     if (ModbusUtil.unsignedByteToInt(dataInputStream.readByte()) != crc[0] || ModbusUtil.unsignedByteToInt(dataInputStream.readByte()) != crc[1]) {
-                        throw new IOException("CRC Error");
+                        throw new ModbusCrcException("CRC Error");
                     }
                     
                     if (logger.isDebugEnabled()) {
@@ -239,13 +241,10 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
             throw new ModbusIOException("End of File", true);
         }
         catch (SocketTimeoutException x) {
-            throw new ModbusIOException("Timeout reading request", x);
-        }
-        catch (SocketException sockex) {
-            throw new ModbusIOException("Socket Exception", sockex);
+            throw new ModbusTimeoutException("Timeout reading request", x);
         }
         catch (IOException ex) {
-            throw new ModbusIOException("I/O exception - failed to read", ex);
+            throw new ModbusIOException("I/O exception - failed to read request", ex);
         }
     }
 
@@ -259,7 +258,9 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
             synchronized (byteInputStream) {
                 // use same buffer
                 byte[] buffer = byteInputStream.getBuffer();
-                logger.debug("Reading response...");
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Reading response...");
+                }
                 if (!useRtuOverTcp) {
                     // All Modbus TCP transactions start with 6 bytes. Get them.
                     dataInputStream.readFully(buffer, 0, 6);
@@ -282,7 +283,6 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
 
                     dataInputStream.readFully(buffer, 6, count);
                     byteInputStream.reset(buffer, (6 + count));
-                    byteInputStream.reset();
                     byteInputStream.skip(7);
                     int function = byteInputStream.readUnsignedByte();
                     response = ModbusResponse.createModbusResponse(function);
@@ -312,7 +312,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                     System.arraycopy(response.getMessage(), 0, buf, 2, buf.length - 2); 
                     int[] crc = ModbusUtil.calculateCRC(buf, 0, buf.length);
                     if (ModbusUtil.unsignedByteToInt(dataInputStream.readByte()) != crc[0] || ModbusUtil.unsignedByteToInt(dataInputStream.readByte()) != crc[1]) {
-                        throw new IOException("CRC Error");
+                        throw new ModbusCrcException("CRC Error");
                     }
                 }
             }
@@ -321,14 +321,11 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
             }
             return response;
         }
-        catch (EOFException ex1) {
-            throw new ModbusIOException("Premature end of stream (Message truncated) - %s", ex1.getMessage());
-        }
         catch (SocketTimeoutException ex2) {
-            throw new ModbusIOException("Socket timeout reading response - %s", ex2.getMessage());
+            throw new ModbusTimeoutException("Socket timeout reading response - %s", ex2.getMessage());
         }
-        catch (Exception ex3) {
-            throw new ModbusIOException("General exception - failed to read - %s", ex3.getMessage());
+        catch (IOException ex) {
+            throw new ModbusIOException("I/O exception - failed to read response - %s", ex.getMessage());
         }
     }
 
@@ -405,22 +402,9 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
             if (logger.isDebugEnabled()) {
                 logger.debug("Successfully sent: {}", ModbusUtil.toHex(byteOutputStream.toByteArray()));
             }
-            // write more sophisticated exception handling
         }
-        catch (SocketException ex1) {
-            if (master != null && !master.isConnected()) {
-                try {
-                    master.connect(useRtuOverTcp);
-                }
-                catch (Exception e) {
-                    // Do nothing.
-                }
-            }
-            throw new ModbusIOException("I/O socket exception - failed to write - %s", ex1.getMessage());
-        }
-        catch (Exception ex2) {
-            throw new ModbusIOException("General exception - failed to write - %s", ex2.getMessage());
+        catch (IOException ex) {
+            throw new ModbusIOException("I/O exception - failed to write - %s", ex.getMessage());
         }
     }
-
 }
