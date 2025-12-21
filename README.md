@@ -12,9 +12,7 @@ Stable releases can be downloaded here
 
 https://mvnrepository.com/artifact/com.ghgande/j2mod
 
-Snapshot releases can be downloaded here 
-
-https://oss.sonatype.org/content/repositories/snapshots/com/ghgande/j2mod/
+Snapshot releases are no longer browsable from Sonatype but they are there if you need them
 
 # Known Issues
 
@@ -25,7 +23,7 @@ https://oss.sonatype.org/content/repositories/snapshots/com/ghgande/j2mod/
 # Dependencies
 
 * [jSerialComm](http://fazecast.github.io/jSerialComm/)
-The serial comms is handled by JSerialComm that includs native implementations for most platforms.
+The serial comms is handled by JSerialComm that includes native implementations for most platforms.
 * [slf4j](https://www.slf4j.org/)
 Logging facade to fit in with your application logging framework
 * JRE 1.8 (JRE 1.6 for v2.70 and lower)
@@ -40,6 +38,3 @@ Logging facade to fit in with your application logging framework
     
 # Announcements
     
-Version 3.2.1 uses the jSerialComm v2.10.4 which includes the potential breaking changes as outlined [here](https://github.com/Fazecast/jSerialComm/releases/tag/v2.10.3)
-
-If you are using the low level methods `readBytes` and `writeBytes` of `SerialConection` directly (very unlikely), you will need to switch your arguments to `int`. 

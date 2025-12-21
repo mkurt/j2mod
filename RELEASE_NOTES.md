@@ -251,3 +251,11 @@ _(**NOT BACKWARDS COMPATIBLE**)_
 * Serial port is left hanging in OS if it gets physically disconnected (#144)
 * Modbus Serial new event to serial disconnected (#148)
 * Updated jserialcomm to 2.10.4
+
+## Version 3.2.2
+* Add support for providing an optional java.net proxy for. (#151)
+* Added support for testing serial comms on Mac/Linux
+
+## Version 3.2.3
+* Failed to read response! CRC Error in received frame #153 - thanks thomas-hutterer-tik. (#153)
+* Expose disableRs485ModeControl from jSerialComm v2.11.4 thanks da-Kai (#160)
