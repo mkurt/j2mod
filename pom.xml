@@ -8,7 +8,7 @@
     <artifactId>j2mod</artifactId>
     <name>j2mod</name>
     <url>https://github.com/steveohara/j2mod</url>
-    <version>3.2.2</version>
+    <version>3.3.0</version>
     <description>A Modbus TCP/UDP/Serial Master and Slave implementation</description>
 
     <packaging>bundle</packaging>
@@ -23,7 +23,7 @@
             <name>Dieter Wimberger</name>
             <email>wimpi@user.sourceforge.com</email>
             <organization>SourceForge</organization>
-            <organizationUrl>http://jamod.sourceforge.net</organizationUrl>
+            <organizationUrl>https://jamod.sourceforge.net</organizationUrl>
             <roles>
                 <role>architect</role>
                 <role>developer</role>
@@ -34,7 +34,7 @@
             <name>John Charlton</name>
             <email>jdcharlton@user.sourceforge.com</email>
             <organization>SourceForge</organization>
-            <organizationUrl>http://jamod.sourceforge.net</organizationUrl>
+            <organizationUrl>https://jamod.sourceforge.net</organizationUrl>
             <roles>
                 <role>developer</role>
             </roles>
@@ -42,9 +42,9 @@
         <developer>
             <id>jhaugh</id>
             <name>Julie Haugh</name>
-            <email>http://www.ghgande.com</email>
+            <email>https://www.ghgande.com</email>
             <organization>greenHouse Gas and Electric</organization>
-            <organizationUrl>http://www.ghgande.com</organizationUrl>
+            <organizationUrl>https://www.ghgande.com</organizationUrl>
             <roles>
                 <role>developer</role>
             </roles>
@@ -54,7 +54,7 @@
             <name>Steve O'Hara</name>
             <email>steve.ohara@4ng.co.uk</email>
             <organization>4NG</organization>
-            <organizationUrl>http://www.4ng.co.uk</organizationUrl>
+            <organizationUrl>https://www.4ng.co.uk</organizationUrl>
             <roles>
                 <role>developer</role>
             </roles>
@@ -64,7 +64,7 @@
     <licenses>
         <license>
             <name>The Apache License, Version 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
         </license>
     </licenses>
 
@@ -292,12 +292,5 @@
             </resource>
         </resources>
     </build>
-
-    <distributionManagement>
-        <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
 
 </project>

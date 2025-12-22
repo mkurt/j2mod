@@ -12,7 +12,8 @@ Stable releases can be downloaded here
 
 https://mvnrepository.com/artifact/com.ghgande/j2mod
 
-Snapshot releases are no longer browsable from Sonatype but they are there if you need them
+**Note**: _Snapshot releases are no longer supported - they exist up until 3.2.2 but Sonatype have made them non-browsable
+and thanks to the way Maven works, they are not retrievable. The world has moved on and stable releases are the way to go._
 
 # Known Issues
 
