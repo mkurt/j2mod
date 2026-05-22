@@ -42,6 +42,8 @@ public class TCPMasterConnection {
     // instance attributes
     private Socket socket;
     private int timeout = Modbus.DEFAULT_TIMEOUT;
+    private int connectTimeout = Modbus.DEFAULT_TIMEOUT;
+    private boolean verifyCrc = false;
     private boolean connected;
 
     private InetAddress address;
@@ -101,6 +103,7 @@ public class TCPMasterConnection {
             logger.trace("prepareTransport() -> using custom transport: {}", transport.getClass().getSimpleName());
             transport.setSocket(socket);
         }
+        transport.setVerifyCrc(verifyCrc);
         transport.setTimeout(timeout);
     }
 
@@ -138,9 +141,9 @@ public class TCPMasterConnection {
                 socket.bind(new InetSocketAddress(networkInterface.getInetAddresses().nextElement(), 0));
             }
 
-            // Connect - only wait for the timeout number of milliseconds
+            // Connect - only wait for the connectTimeout number of milliseconds
 
-            socket.connect(new InetSocketAddress(address, port), timeout);
+            socket.connect(new InetSocketAddress(address, port), connectTimeout);
 
             // Prepare the transport
 
@@ -243,10 +246,11 @@ public class TCPMasterConnection {
     }
 
     /**
-     * Sets the timeout (msec) for this <tt>TCPMasterConnection</tt>. This is both the
-     * connection timeout and the transaction timeout
+     * Sets the read timeout (msec) for this <tt>TCPMasterConnection</tt>.
+     * Applied to socket reads after the connection is established.
+     * To control the TCP handshake timeout separately, use {@link #setConnectTimeout(int)}.
      *
-     * @param timeout - the timeout in milliseconds as an <tt>int</tt>.
+     * @param timeout the timeout in milliseconds as an <tt>int</tt>.
      */
     public synchronized void setTimeout(int timeout) {
         try {
@@ -258,6 +262,44 @@ public class TCPMasterConnection {
         catch (IOException ex) {
             logger.warn("Could not set timeout to value {}", timeout, ex);
         }
+    }
+
+    /**
+     * Returns the connect timeout (msec) for this <tt>TCPMasterConnection</tt>.
+     *
+     * @return the connect timeout as <tt>int</tt>.
+     */
+    public int getConnectTimeout() {
+        return connectTimeout;
+    }
+
+    /**
+     * Sets the connect timeout (msec) for this <tt>TCPMasterConnection</tt>.
+     * Applied only during the TCP handshake; does not affect read timeout.
+     *
+     * @param connectTimeout the timeout in milliseconds as an <tt>int</tt>.
+     */
+    public void setConnectTimeout(int connectTimeout) {
+        this.connectTimeout = connectTimeout;
+    }
+
+    /**
+     * Returns whether CRC verification is enabled for RTU-over-TCP reads.
+     *
+     * @return true if CRC verification is enabled.
+     */
+    public boolean isVerifyCrc() {
+        return verifyCrc;
+    }
+
+    /**
+     * Sets whether CRC bytes should be verified on RTU-over-TCP reads.
+     * Only meaningful when connecting with {@code useRtuOverTcp=true}.
+     *
+     * @param verifyCrc true to verify CRC on each read.
+     */
+    public void setVerifyCrc(boolean verifyCrc) {
+        this.verifyCrc = verifyCrc;
     }
 
     /**

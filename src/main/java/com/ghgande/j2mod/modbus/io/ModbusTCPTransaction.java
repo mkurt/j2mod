@@ -16,9 +16,12 @@
 package com.ghgande.j2mod.modbus.io;
 
 import com.ghgande.j2mod.modbus.Modbus;
+import com.ghgande.j2mod.modbus.ModbusCrcException;
 import com.ghgande.j2mod.modbus.ModbusException;
 import com.ghgande.j2mod.modbus.ModbusIOException;
+import com.ghgande.j2mod.modbus.ModbusRetryException;
 import com.ghgande.j2mod.modbus.ModbusSlaveException;
+import com.ghgande.j2mod.modbus.ModbusTimeoutException;
 import com.ghgande.j2mod.modbus.msg.ExceptionResponse;
 import com.ghgande.j2mod.modbus.msg.ModbusRequest;
 import com.ghgande.j2mod.modbus.net.TCPMasterConnection;
@@ -135,9 +138,6 @@ public class ModbusTCPTransaction extends ModbusTransaction {
                 }
             }
 
-            // Make sure the timeout is set
-            transport.setTimeout(connection.getTimeout());
-
             try {
 
                 // Write the message to the endpoint
@@ -165,7 +165,7 @@ public class ModbusTCPTransaction extends ModbusTransaction {
                 if (responseIsInValid()) {
                     retryCounter++;
                     if (retryCounter >= retryLimit) {
-                        throw new ModbusIOException("Executing transaction failed (tried %d times)", retryLimit);
+                        throw new ModbusRetryException("Executing transaction failed (tried %d times)", retryLimit);
                     }
                     keepTrying = true;
                     long sleepTime = getRandomSleepTime(retryCounter);
@@ -183,22 +183,27 @@ public class ModbusTCPTransaction extends ModbusTransaction {
                 // Up the retry counter and check if we are exhausted
                 retryCounter++;
                 if (retryCounter >= retryLimit) {
-                    throw new ModbusIOException("Executing transaction %s failed (tried %d times) %s", request.getHexMessage(), retryLimit, ex.getMessage());
+                    throw new ModbusRetryException("Executing transaction %s failed (tried %d times) %s", request.getHexMessage(), retryLimit, ex.getMessage());
+                }
+                long sleepTime = getRandomSleepTime(retryCounter);
+                logger.debug("Failed transaction Request: {} (try: {}) - retrying after {} milliseconds", request.getHexMessage(), retryCounter, sleepTime);
+                ModbusUtil.sleep(sleepTime);
+
+                // CRC errors and timeouts leave the TCP connection intact — no need to reconnect
+                if (ex instanceof ModbusCrcException || ex instanceof ModbusTimeoutException) {
+                    logger.debug("Failed request {} (try: {}) - {} - retrying without reconnecting", request.getHexMessage(), retryCounter, ex.getMessage());
                 }
                 else {
-                    long sleepTime = getRandomSleepTime(retryCounter);
-                    logger.debug("Failed transaction Request: {} (try: {}) - retrying after {} milliseconds", request.getHexMessage(), retryCounter, sleepTime);
-                    ModbusUtil.sleep(sleepTime);
+                    logger.debug("Failed request {} (try: {}) - {} - closing connection {}:{}", request.getHexMessage(), retryCounter, ex.getMessage(), connection.getAddress().toString(), connection.getPort());
+                    connection.close();
                 }
-
-                // If this has happened, then we should close and re-open the connection before re-trying
-                logger.debug("Failed request {} (try: {}) request transaction ID = {} - {} closing and re-opening connection {}:{}", request.getHexMessage(), retryCounter, request.getTransactionID(), ex.getMessage(), connection.getAddress().toString(), connection.getPort());
-                connection.close();
             }
-
-            // Increment the transaction ID if we are still trying
-            if (keepTrying) {
-                incrementTransactionID();
+            finally {
+                // Always advance the transaction ID when retrying so stale responses
+                // from a previous attempt cannot satisfy the next request's validity check
+                if (keepTrying) {
+                    incrementTransactionID();
+                }
             }
         }
 

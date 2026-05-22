@@ -34,8 +34,8 @@ public class TestModbusTCPMasterTimeout extends AbstractTestModbusTCPMaster {
         long start = 0;
         try {
             master = new ModbusTCPMaster("apple.com", PORT);
+            master.setConnectTimeout(1000);
             start = System.currentTimeMillis();
-            master.setTimeout(1000);
             master.connect();
             master.disconnect();
             fail("Somehow, the master has found a slave at mythical-modbus.com");

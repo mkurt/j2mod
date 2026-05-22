@@ -41,6 +41,7 @@ public class ModbusTCPListener extends AbstractModbusListener {
     private final ThreadPool threadPool;
     private Thread listener;
     private final boolean useRtuOverTcp;
+    private final boolean verifyCrc;
     private int maxIdleSeconds;
 
     /**
@@ -51,48 +52,45 @@ public class ModbusTCPListener extends AbstractModbusListener {
      * @param addr     the interface to use for listening.
      */
     public ModbusTCPListener(int poolsize, InetAddress addr) {
-        this(poolsize, addr, false);
+        this(poolsize, addr, false, false);
+    }
+
+    public ModbusTCPListener(int poolsize, InetAddress addr, boolean useRtuOverTcp) {
+        this(poolsize, addr, useRtuOverTcp, false);
     }
 
     /**
      * Constructs a ModbusTCPListener instance.<br>
      *
-     * @param poolsize      the size of the <tt>ThreadPool</tt> used to handle incoming
-     *                      requests.
+     * @param poolsize      the size of the <tt>ThreadPool</tt> used to handle incoming requests.
      * @param addr          the interface to use for listening.
      * @param useRtuOverTcp True if the RTU protocol should be used over TCP
+     * @param verifyCrc     True to verify CRC bytes on RTU-over-TCP reads
      */
-    public ModbusTCPListener(int poolsize, InetAddress addr, boolean useRtuOverTcp) {
+    public ModbusTCPListener(int poolsize, InetAddress addr, boolean useRtuOverTcp, boolean verifyCrc) {
         threadPool = new ThreadPool(poolsize);
         address = addr;
         this.useRtuOverTcp = useRtuOverTcp;
+        this.verifyCrc = verifyCrc;
         maxIdleSeconds = 0;
     }
 
-    /**
-     * /**
-     * Constructs a ModbusTCPListener instance.  This interface is created
-     * to listen on the wildcard address (0.0.0.0), which will accept TCP packets
-     * on all available adapters/interfaces
-     *
-     * @param poolsize the size of the <tt>ThreadPool</tt> used to handle incoming
-     *                 requests.
-     */
     public ModbusTCPListener(int poolsize) {
-        this(poolsize, false);
+        this(poolsize, false, false);
+    }
+
+    public ModbusTCPListener(int poolsize, boolean useRtuOverTcp) {
+        this(poolsize, useRtuOverTcp, false);
     }
 
     /**
-     * /**
-     * Constructs a ModbusTCPListener instance.  This interface is created
-     * to listen on the wildcard address (0.0.0.0), which will accept TCP packets
-     * on all available adapters/interfaces
+     * Constructs a ModbusTCPListener instance listening on the wildcard address (0.0.0.0).
      *
-     * @param poolsize      the size of the <tt>ThreadPool</tt> used to handle incoming
-     *                      requests.
+     * @param poolsize      the size of the <tt>ThreadPool</tt> used to handle incoming requests.
      * @param useRtuOverTcp True if the RTU protocol should be used over TCP
+     * @param verifyCrc     True to verify CRC bytes on RTU-over-TCP reads
      */
-    public ModbusTCPListener(int poolsize, boolean useRtuOverTcp) {
+    public ModbusTCPListener(int poolsize, boolean useRtuOverTcp, boolean verifyCrc) {
         threadPool = new ThreadPool(poolsize);
         try {
             address = InetAddress.getByAddress(new byte[]{0, 0, 0, 0});
@@ -101,6 +99,7 @@ public class ModbusTCPListener extends AbstractModbusListener {
             // Can't happen -- size is fixed.
         }
         this.useRtuOverTcp = useRtuOverTcp;
+        this.verifyCrc = verifyCrc;
         maxIdleSeconds = 0;
     }
 
@@ -191,7 +190,7 @@ public class ModbusTCPListener extends AbstractModbusListener {
                 }
                 logger.debug("Making new connection {}", incoming);
                 if (listening) {
-                    TCPSlaveConnection slave = new TCPSlaveConnection(incoming, useRtuOverTcp);
+                    TCPSlaveConnection slave = new TCPSlaveConnection(incoming, useRtuOverTcp, verifyCrc);
                     slave.setTimeout(timeout);
                     threadPool.execute(new TCPConnectionHandler(this, slave, maxIdleSeconds));
                 }

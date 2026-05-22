@@ -233,6 +233,16 @@ public class ModbusTCPMaster extends AbstractModbusMaster {
         }
     }
 
+    public synchronized void setConnectTimeout(int timeout) {
+        if (connection != null) {
+            connection.setConnectTimeout(timeout);
+        }
+    }
+
+    public synchronized int getConnectTimeout() {
+        return connection == null ? 0 : connection.getConnectTimeout();
+    }
+
     @Override
     public AbstractModbusTransport getTransport() {
         return connection == null ? null : connection.getModbusTransport();

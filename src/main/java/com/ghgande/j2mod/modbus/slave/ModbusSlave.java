@@ -260,7 +260,6 @@ public class ModbusSlave {
     /**
      * Closes the listener of this slave
      */
-    @SuppressWarnings("deprecation")
     void closeListener() {
         if (listener != null && listener.isListening()) {
             listener.stop();
@@ -271,9 +270,15 @@ public class ModbusSlave {
                 ModbusUtil.sleep(100);
                 count++;
             }
-            // If the listener is still not stopped, kill the thread
+            // If the listener is still not stopped, interrupt it (unblocks queued I/O waits)
             if (listenerThread != null && listenerThread.isAlive()) {
-                listenerThread.stop();
+                listenerThread.interrupt();
+                try {
+                    listenerThread.join(1000);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
             listenerThread = null;
         }

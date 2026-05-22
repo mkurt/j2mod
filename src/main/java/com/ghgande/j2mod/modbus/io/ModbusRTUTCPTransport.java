@@ -15,10 +15,6 @@
  */
 package com.ghgande.j2mod.modbus.io;
 
-import com.ghgande.j2mod.modbus.ModbusIOException;
-import com.ghgande.j2mod.modbus.msg.ModbusRequest;
-import com.ghgande.j2mod.modbus.msg.ModbusResponse;
-
 import java.net.Socket;
 
 /**
@@ -34,30 +30,17 @@ public class ModbusRTUTCPTransport extends ModbusTCPTransport {
      * Default constructor
      */
     public ModbusRTUTCPTransport() {
-        // RTU over TCP is headless by default
-        setHeadless();
+        setUseRtuOverTcp(true);
     }
 
     /**
      * Constructs a new <tt>ModbusTransport</tt> instance, for a given
      * <tt>Socket</tt>.
-     * <p>
      *
      * @param socket the <tt>Socket</tt> used for message transport.
      */
     public ModbusRTUTCPTransport(Socket socket) {
         super(socket);
-        // RTU over TCP is headless by default
-        setHeadless();
-    }
-
-    @Override
-    public void writeResponse(ModbusResponse msg) throws ModbusIOException {
-        writeMessage(msg, true);
-    }
-
-    @Override
-    public void writeRequest(ModbusRequest msg) throws ModbusIOException {
-        writeMessage(msg, true);
+        setUseRtuOverTcp(true);
     }
 }

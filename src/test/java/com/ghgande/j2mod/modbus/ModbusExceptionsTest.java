@@ -3,6 +3,8 @@ package com.ghgande.j2mod.modbus;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.junit.Assert.*;
+
 public class ModbusExceptionsTest {
 
     @Test
@@ -32,6 +34,30 @@ public class ModbusExceptionsTest {
         Assert.assertTrue("IO Exception should be at EOF.", modbusEx4.isEOF());
         modbusEx4.setEOF(false);
         Assert.assertFalse("IO Exception should not be at EOF.", modbusEx4.isEOF());
+    }
+
+    @Test
+    public void testModbusCrcException() {
+        ModbusCrcException ex = new ModbusCrcException("CRC mismatch");
+        assertEquals("CRC mismatch", ex.getMessage());
+        assertTrue("ModbusCrcException must be a ModbusIOException", ex instanceof ModbusIOException);
+        assertTrue("ModbusCrcException must be a ModbusException", ex instanceof ModbusException);
+    }
+
+    @Test
+    public void testModbusTimeoutException() {
+        ModbusTimeoutException ex = new ModbusTimeoutException("timeout");
+        assertEquals("timeout", ex.getMessage());
+        assertTrue("ModbusTimeoutException must be a ModbusIOException", ex instanceof ModbusIOException);
+        assertTrue("ModbusTimeoutException must be a ModbusException", ex instanceof ModbusException);
+    }
+
+    @Test
+    public void testModbusRetryException() {
+        ModbusRetryException ex = new ModbusRetryException("failed after %d tries", 3);
+        assertEquals("failed after 3 tries", ex.getMessage());
+        assertTrue("ModbusRetryException must be a ModbusException", ex instanceof ModbusException);
+        assertFalse("ModbusRetryException must NOT be a ModbusIOException", ((Exception) ex) instanceof ModbusIOException);
     }
 
     @Test

@@ -16,7 +16,9 @@
 package com.ghgande.j2mod.modbus.io;
 
 import com.ghgande.j2mod.modbus.Modbus;
+import com.ghgande.j2mod.modbus.ModbusCrcException;
 import com.ghgande.j2mod.modbus.ModbusIOException;
+import com.ghgande.j2mod.modbus.ModbusTimeoutException;
 import com.ghgande.j2mod.modbus.msg.ModbusMessage;
 import com.ghgande.j2mod.modbus.msg.ModbusRequest;
 import com.ghgande.j2mod.modbus.msg.ModbusResponse;
@@ -49,7 +51,8 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
     private final BytesOutputStream byteOutputStream = new BytesOutputStream(Modbus.MAX_MESSAGE_LENGTH + 6); // write frames
     protected Socket socket = null;
     protected TCPMasterConnection master = null;
-    private boolean headless = false; // Some TCP implementations are.
+    private boolean useRtuOverTcp = false;
+    private boolean verifyCrc = false;
     private long lastActivityTimestamp;  // System.nanoTime() of last transportation
 
     /**
@@ -99,19 +102,23 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
     }
 
     /**
-     * Set the transport to be headless
+     * Sets whether this transport uses RTU framing over TCP (no MBAP header, with CRC).
+     *
+     * @param useRtuOverTcp True if RTU-over-TCP framing should be used
      */
-    public void setHeadless() {
-        headless = true;
+    public void setUseRtuOverTcp(boolean useRtuOverTcp) {
+        this.useRtuOverTcp = useRtuOverTcp;
     }
 
     /**
-     * Set the transport to be headless
+     * Sets whether received CRC bytes should be verified against the computed CRC.
+     * Only applies when {@code useRtuOverTcp} is true. Defaults to false.
+     * When false, CRC bytes are read from the stream and discarded without checking.
      *
-     * @param headless True if headless
+     * @param verifyCrc True to verify CRC on each RTU-over-TCP read
      */
-    public void setHeadless(boolean headless) {
-        this.headless = headless;
+    public void setVerifyCrc(boolean verifyCrc) {
+        this.verifyCrc = verifyCrc;
     }
 
     /**
@@ -163,12 +170,12 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
 
     @Override
     public void writeResponse(ModbusResponse msg) throws ModbusIOException {
-        writeMessage(msg, false);
+        writeMessage(msg);
     }
 
     @Override
     public void writeRequest(ModbusRequest msg) throws ModbusIOException {
-        writeMessage(msg, false);
+        writeMessage(msg);
     }
 
     @Override
@@ -182,7 +189,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
             synchronized (byteInputStream) {
                 byte[] buffer = byteInputStream.getBuffer();
 
-                if (!headless) {
+                if (!useRtuOverTcp) {
                     dataInputStream.readFully(buffer, 0, 6);
 
                     // The transaction ID must be treated as an unsigned short in
@@ -217,7 +224,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                 }
                 else {
 
-                    // This is a headless request.
+                    // RTU-over-TCP: no MBAP header, with CRC trailer
 
                     int unit = dataInputStream.readByte();
                     int function = dataInputStream.readByte();
@@ -227,10 +234,22 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                     req.setHeadless(true);
                     req.readData(dataInputStream);
 
-                    // Discard the CRC. This is a TCP/IP connection, which has
-                    // proper error correction and recovery.
-
-                    dataInputStream.readShort();
+                    int crcLow = dataInputStream.readUnsignedByte();
+                    int crcHigh = dataInputStream.readUnsignedByte();
+                    if (verifyCrc) {
+                        byte[] data = req.getMessage();
+                        int dataLen = data != null ? data.length : 0;
+                        byte[] frame = new byte[2 + dataLen];
+                        frame[0] = (byte) unit;
+                        frame[1] = (byte) function;
+                        if (dataLen > 0) {
+                            System.arraycopy(data, 0, frame, 2, dataLen);
+                        }
+                        int[] expected = ModbusUtil.calculateCRC(frame, 0, frame.length);
+                        if (expected[0] != crcLow || expected[1] != crcHigh) {
+                            throw new ModbusCrcException("CRC mismatch in request from unit " + unit);
+                        }
+                    }
                     if (logger.isDebugEnabled()) {
                         logger.debug("Read: {}", req.getHexMessage());
                     }
@@ -263,7 +282,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                 // use same buffer
                 byte[] buffer = byteInputStream.getBuffer();
                 logger.debug("Reading response...");
-                if (!headless) {
+                if (!useRtuOverTcp) {
                     // All Modbus TCP transactions start with 6 bytes. Get them.
                     dataInputStream.readFully(buffer, 0, 6);
 
@@ -299,8 +318,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                     response.setProtocolID(protocol);
                 }
                 else {
-                    // This is a headless response. It has the same format as a
-                    // RTU over Serial response.
+                    // RTU-over-TCP: no MBAP header, with CRC trailer
                     int unit = dataInputStream.readByte();
                     int function = dataInputStream.readByte();
 
@@ -309,9 +327,22 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                     response.setHeadless();
                     response.readData(dataInputStream);
 
-                    // Now discard the CRC. Which hopefully wasn't needed
-                    // because this is a TCP transport.
-                    dataInputStream.readShort();
+                    int crcLow = dataInputStream.readUnsignedByte();
+                    int crcHigh = dataInputStream.readUnsignedByte();
+                    if (verifyCrc) {
+                        byte[] data = response.getMessage();
+                        int dataLen = data != null ? data.length : 0;
+                        byte[] frame = new byte[2 + dataLen];
+                        frame[0] = (byte) unit;
+                        frame[1] = (byte) function;
+                        if (dataLen > 0) {
+                            System.arraycopy(data, 0, frame, 2, dataLen);
+                        }
+                        int[] expected = ModbusUtil.calculateCRC(frame, 0, frame.length);
+                        if (expected[0] != crcLow || expected[1] != crcHigh) {
+                            throw new ModbusCrcException("CRC mismatch in response from unit " + unit);
+                        }
+                    }
                 }
             }
             if (logger.isDebugEnabled()) {
@@ -323,10 +354,10 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
             throw new ModbusIOException("Premature end of stream (Message truncated) - %s", ex1.getMessage());
         }
         catch (SocketTimeoutException ex2) {
-            throw new ModbusIOException("Socket timeout reading response - %s", ex2.getMessage());
+            throw new ModbusTimeoutException("Socket timeout reading response - " + ex2.getMessage());
         }
-        catch (Exception ex3) {
-            throw new ModbusIOException("General exception - failed to read - %s", ex3.getMessage());
+        catch (IOException ex3) {
+            throw new ModbusIOException("Failed to read response - %s", ex3.getMessage());
         }
     }
 
@@ -359,20 +390,14 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
     }
 
     /**
-     * Writes a <tt>ModbusMessage</tt> to the
-     * output stream of this <tt>ModbusTransport</tt>.
-     * <p>
+     * Writes a <tt>ModbusMessage</tt> to the output stream of this <tt>ModbusTransport</tt>.
      *
-     * @param msg           a <tt>ModbusMessage</tt>.
-     * @param useRtuOverTcp True if the RTU protocol should be used over TCP
-     *
-     * @throws ModbusIOException data cannot be
-     *                           written properly to the raw output stream of
-     *                           this <tt>ModbusTransport</tt>.
+     * @param msg a <tt>ModbusMessage</tt>.
+     * @throws ModbusIOException if the message cannot be written.
      */
-    void writeMessage(ModbusMessage msg, boolean useRtuOverTcp) throws ModbusIOException {
+    void writeMessage(ModbusMessage msg) throws ModbusIOException {
         lastActivityTimestamp = System.nanoTime();
-        
+
         try {
             if (logger.isDebugEnabled()) {
                 logger.debug("Sending: {}", msg.getHexMessage());
@@ -380,7 +405,7 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
             byte[] message = msg.getMessage();
 
             byteOutputStream.reset();
-            if (!headless) {
+            if (!useRtuOverTcp) {
                 byteOutputStream.writeShort(msg.getTransactionID());
                 byteOutputStream.writeShort(msg.getProtocolID());
                 byteOutputStream.writeShort((message != null ? message.length : 0) + 2);
@@ -391,7 +416,6 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
                 byteOutputStream.write(message);
             }
 
-            // Add CRC for RTU over TCP
             if (useRtuOverTcp) {
                 int len = byteOutputStream.size();
                 int[] crc = ModbusUtil.calculateCRC(byteOutputStream.getBuffer(), 0, len);
@@ -404,21 +428,9 @@ public class ModbusTCPTransport extends AbstractModbusTransport {
             if (logger.isDebugEnabled()) {
                 logger.debug("Successfully sent: {}", ModbusUtil.toHex(byteOutputStream.toByteArray()));
             }
-            // write more sophisticated exception handling
         }
-        catch (SocketException ex1) {
-            if (master != null && !master.isConnected()) {
-                try {
-                    master.connect(useRtuOverTcp);
-                }
-                catch (Exception e) {
-                    // Do nothing.
-                }
-            }
-            throw new ModbusIOException("I/O socket exception - failed to write - %s", ex1.getMessage());
-        }
-        catch (Exception ex2) {
-            throw new ModbusIOException("General exception - failed to write - %s", ex2.getMessage());
+        catch (IOException ex) {
+            throw new ModbusIOException("Failed to write message - %s", ex.getMessage());
         }
     }
 
